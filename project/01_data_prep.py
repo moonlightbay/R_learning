@@ -59,6 +59,15 @@ clinical_clean = clinical_clean.rename(columns=possible_mappings)
 # 去除重复列 (以防映射后有重复，例如同时存在 race 和 demographic.race)
 clinical_clean = clinical_clean.loc[:, ~clinical_clean.columns.duplicated()]
 
+# --- 新增：去除重复病人 (关键修正) ---
+# TCGA 临床数据中同一个病人可能有多个条目（对应不同治疗阶段），但生存数据通常是一样的
+# 我们只需要保留每个病人的一条记录，否则会造成统计膨胀
+if 'case_submitter_id' in clinical_clean.columns:
+    before_dedup = len(clinical_clean)
+    clinical_clean = clinical_clean.drop_duplicates(subset=['case_submitter_id'], keep='first')
+    print(f"已去除重复病人记录: {before_dedup} -> {len(clinical_clean)}")
+# ------------------------------------
+
 print(f"已提取并重命名临床列: {clinical_clean.columns.tolist()}")
 
 # 处理生存时间：优先用 days_to_death，如果是 Alive 则用 days_to_last_follow_up
