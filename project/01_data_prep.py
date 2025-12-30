@@ -48,7 +48,22 @@ possible_mappings = {
     'race': 'race',
     
     'diagnoses.ajcc_pathologic_stage': 'ajcc_pathologic_stage',
-    'ajcc_pathologic_stage': 'ajcc_pathologic_stage'
+    'ajcc_pathologic_stage': 'ajcc_pathologic_stage',
+
+    'diagnoses.tumor_grade': 'tumor_grade',
+    'tumor_grade': 'tumor_grade',
+
+    'diagnoses.figo_stage': 'figo_stage',
+    'figo_stage': 'figo_stage',
+
+    'diagnoses.ajcc_pathologic_t': 'ajcc_pathologic_t',
+    'ajcc_pathologic_t': 'ajcc_pathologic_t',
+
+    'diagnoses.ajcc_pathologic_m': 'ajcc_pathologic_m',
+    'ajcc_pathologic_m': 'ajcc_pathologic_m',
+
+    'diagnoses.ajcc_pathologic_n': 'ajcc_pathologic_n',
+    'ajcc_pathologic_n': 'ajcc_pathologic_n'
 }
 
 # 筛选出实际存在的列并重命名
@@ -58,6 +73,58 @@ clinical_clean = clinical_clean.rename(columns=possible_mappings)
 
 # 去除重复列 (以防映射后有重复，例如同时存在 race 和 demographic.race)
 clinical_clean = clinical_clean.loc[:, ~clinical_clean.columns.duplicated()]
+
+# --- 临床数据清洗 (根据用户要求) ---
+# 1. Stage 清洗: 统一为 I, II, III, IV
+def clean_stage(val):
+    if pd.isna(val): return np.nan
+    val = str(val).replace("Stage ", "").strip()
+    if val.startswith("IV"): return "IV"
+    if val.startswith("III"): return "III"
+    if val.startswith("II"): return "II"
+    if val.startswith("I"): return "I"
+    return val
+
+if 'figo_stage' in clinical_clean.columns:
+    clinical_clean['figo_stage'] = clinical_clean['figo_stage'].apply(clean_stage)
+
+# 2. T 分期清洗: 取前两个字符 (T1, T2, T3, T4, TX), Tis -> T0
+def clean_t(val):
+    if pd.isna(val): return np.nan
+    val = str(val).strip()
+    if val == "Tis": return "T0"
+    if val.startswith("T"):
+        return val[:2]
+    return val
+
+if 'ajcc_pathologic_t' in clinical_clean.columns:
+    clinical_clean['ajcc_pathologic_t'] = clinical_clean['ajcc_pathologic_t'].apply(clean_t)
+
+# 3. M 分期清洗: 统一为 M0, M1, MX
+def clean_m(val):
+    if pd.isna(val): return np.nan
+    val = str(val).strip().upper()
+    if "M1" in val: return "M1"
+    if "M0" in val: return "M0"
+    if "MX" in val: return "MX"
+    return val # 保留原样或设为NA
+
+if 'ajcc_pathologic_m' in clinical_clean.columns:
+    clinical_clean['ajcc_pathologic_m'] = clinical_clean['ajcc_pathologic_m'].apply(clean_m)
+
+# 4. N 分期清洗: 统一为 N0, N1, NX
+def clean_n(val):
+    if pd.isna(val): return np.nan
+    val = str(val).strip().upper()
+    if "N1" in val: return "N1"
+    if "N0" in val: return "N0"
+    if "NX" in val: return "NX"
+    return val
+
+if 'ajcc_pathologic_n' in clinical_clean.columns:
+    clinical_clean['ajcc_pathologic_n'] = clinical_clean['ajcc_pathologic_n'].apply(clean_n)
+
+# ------------------------------------
 
 # --- 新增：去除重复病人 (关键修正) ---
 # TCGA 临床数据中同一个病人可能有多个条目（对应不同治疗阶段），但生存数据通常是一样的
