@@ -58,7 +58,7 @@ analysis_data$risk_score <- predict(multi_cox, type = "risk", newdata = analysis
 # 分组
 cutoff_score <- median(analysis_data$risk_score)
 analysis_data$Risk_group <- ifelse(analysis_data$risk_score > cutoff_score, "High", "Low")
-analysis_data$Risk_group <- factor(analysis_data$Risk_group, levels = c("Low", "High")) # 注意: 这里的 level 顺序影响绘图顺序
+analysis_data$Risk_group <- factor(analysis_data$Risk_group, levels = c("High", "Low")) # 注意: 这里的 level 顺序影响绘图顺序
 
 # ------------------------------------------------------------------------------
 # 3. IC50 预测 (模拟数据)
@@ -121,7 +121,7 @@ create_boxplot <- function(data, drug_name) {
     geom_jitter(width = 0.2, size = 1, alpha = 0.5, color = "black") +
     scale_fill_manual(values = my_colors) +
     stat_compare_means(method = "wilcox.test", label = "p.signif", 
-                       comparisons = list(c("Low", "High")),
+                       comparisons = list(c("High", "Low")),
                        symnum.args = list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), 
                                           symbols = c("****", "***", "**", "*", "ns"))) +
     labs(title = drug_name, y = "Estimated IC50", x = "") +

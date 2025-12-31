@@ -1,5 +1,5 @@
 # ==============================================================================
-# 脚本名称: 04_fig8D_clinical_pie.R
+# 脚本名称: 03_fig8D_clinical_pie.R
 # 功能: Fig 8D: 临床特征在 High/Low MFRS 组间的分布 (环形饼图)
 #       布局: 2行8列 (行: Status, Age, Race, Stage, Grade, T, M, N; 列: High, Low)
 #       颜色: 每列不同色系，深浅表示占比

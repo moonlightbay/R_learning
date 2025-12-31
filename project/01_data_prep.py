@@ -167,7 +167,8 @@ print("正在遍历数据文件夹并合并表达矩阵 (这可能需要几分�
 # 查找所有 .tsv 文件
 all_files = glob.glob(os.path.join(DATA_DIR, "**", "*.tsv"), recursive=True)
 
-merged_data = {}
+merged_data_tpm = {}
+merged_data_counts = {}
 
 for i, file_path in enumerate(all_files):
     file_name = os.path.basename(file_path)
@@ -199,29 +200,20 @@ for i, file_path in enumerate(all_files):
             df = df.dropna(subset=['gene_name'])
         # -----------------------
 
-        # 假设第4列是 unstranded counts (根据TCGA标准)
-        # 如果列名不同，请检查文件内容。通常是 'unstranded' 或 'tpm_unstranded'
+        # --- 提取 TPM (用于生存分析/Risk Score) ---
         if 'tpm_unstranded' in df.columns:
-             # 优先使用 TPM (Transcripts Per Million) 进行生存分析，因为它已经归一化了测序深度和基因长度
-            counts = df.set_index('gene_name')['tpm_unstranded']
-        elif 'unstranded' in df.columns:
+            tpm = df.set_index('gene_name')['tpm_unstranded']
+            # 处理重复基因名: 分组取平均
+            tpm = tpm.groupby(level=0).mean()
+            merged_data_tpm[case_id] = tpm
+        
+        # --- 提取 Raw Counts (用于 DESeq2 差异分析) ---
+        if 'unstranded' in df.columns:
             counts = df.set_index('gene_name')['unstranded']
-        else:
-            # 尝试取第4列
-            counts = df.set_index(df.columns[1]).iloc[:, 2] 
+            # 处理重复基因名: 分组求和 (Counts 应该是累加)
+            counts = counts.groupby(level=0).sum()
+            merged_data_counts[case_id] = counts
             
-        # 处理重复基因名
-        # ---------------------------------------------------------
-        # 方案 A: 仅保留第一个 (原先的处理方式 - 已注释)
-        # 缺点：可能会随机丢弃该基因的其他转录本信息
-        # counts = counts[~counts.index.duplicated(keep='first')]
-        
-        # 方案 B: 分组取平均 (推荐 - 新增)
-        # 优点：综合了该基因所有条目的表达量，更稳健
-        counts = counts.groupby(level=0).mean()
-        # ---------------------------------------------------------
-        
-        merged_data[case_id] = counts
     except Exception as e:
         print(f"Error reading {file_name}: {e}")
 
@@ -229,22 +221,21 @@ for i, file_path in enumerate(all_files):
         print(f"已处理 {i}/{len(all_files)} 个文件...")
 
 print("正在构建最终矩阵...")
-expression_matrix = pd.DataFrame(merged_data)
-# 填充缺失值为0 (针对某个样本完全缺失某个基因的情况)
-expression_matrix = expression_matrix.fillna(0)
 
-# --- 数据转换 (Log Transformation) ---
-# ---------------------------------------------------------
-# 方案 A: 原始 TPM (不推荐 - 已注释)
-# 缺点：数据分布高度偏态，极值会影响 Lasso/Cox 模型性能
-# pass 
+# --- 保存 TPM 矩阵 (Log2转换) ---
+if merged_data_tpm:
+    expression_matrix = pd.DataFrame(merged_data_tpm)
+    expression_matrix = expression_matrix.fillna(0)
+    print("正在进行 Log2(TPM + 1) 转换...")
+    expression_matrix_log = np.log2(expression_matrix + 1)
+    expression_matrix_log.to_csv(os.path.join(OUTPUT_DIR, "expression_matrix.csv"))
+    print(f"TPM数据已保存至 {os.path.join(OUTPUT_DIR, 'expression_matrix.csv')}")
 
-# 方案 B: Log2(TPM + 1) 转换 (推荐 - 新增)
-# 优点：稳定方差，使数据接近正态分布，符合统计模型假设
-print("正在进行 Log2(TPM + 1) 转换...")
-expression_matrix = np.log2(expression_matrix + 1)
-# ---------------------------------------------------------
+# --- 保存 Raw Counts 矩阵 (整数) ---
+if merged_data_counts:
+    expression_matrix_counts = pd.DataFrame(merged_data_counts)
+    expression_matrix_counts = expression_matrix_counts.fillna(0).astype(int)
+    expression_matrix_counts.to_csv(os.path.join(OUTPUT_DIR, "expression_matrix_counts.csv"))
+    print(f"Raw Counts数据已保存至 {os.path.join(OUTPUT_DIR, 'expression_matrix_counts.csv')}")
 
-# 保存
-expression_matrix.to_csv(os.path.join(OUTPUT_DIR, "expression_matrix.csv"))
-print(f"完成！数据已保存至 {OUTPUT_DIR}")
+print("数据准备完成！")

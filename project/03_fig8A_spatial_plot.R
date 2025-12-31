@@ -1,7 +1,12 @@
 # ==============================================================================
 # 脚本名称: 03_fig8A_spatial_plot.R
 # 功能: Fig 8A: 空间转录组特征图 (Spatial Feature Map)
-#       展示 Tumor Border (Bdy), Malignant (Mal, Mal1), Normal (New) 的分布
+# 说明: 
+#   原文使用了 'Cottrazm' 包来界定肿瘤边界 (Tumor Boundary)。
+#   由于缺少 scRNA-seq 参考数据集 (用于 RCTD 反卷积)，我们无法完全复现 Cottrazm 的流程。
+#   本脚本采用 Seurat 的无监督聚类 (Unsupervised Clustering) 来近似识别 
+#   Malignant (恶性), Normal (正常) 和 Tumor Border (边界) 区域。
+#   同时绘制文中提到的关键基因以辅助注释。
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -102,11 +107,8 @@ ggsave("results/Fig8A_Spatial_Clustering_Raw.pdf", p_raw, width = 8, height = 8)
 # 这里我们改回合理的英寸尺寸
 ggsave("results/Fig8A_Spatial_Clustering_Raw.png", p_raw, width = 10, height = 10, dpi = 300)
 
-message("初步聚类图已保存至 results/Fig8A_Spatial_Clustering_Raw.png")
-message("请打开该图片，对比论文原图，确定数字 ID 与 'New', 'Bdy', 'Mal', 'Mal1' 的对应关系。")
-
 # ------------------------------------------------------------------------------
-# 5.1 辅助注释：绘制标记基因 (Marker Genes)
+# 5.1 辅助注释：绘制标记基因 (Marker Genes) 与 关键风险基因
 # ------------------------------------------------------------------------------
 # 为了帮助确定哪个聚类对应 Mal, Normal, Bdy，我们绘制一些经典标记物
 # 宫颈癌常见标记:
@@ -115,14 +117,34 @@ message("请打开该图片，对比论文原图，确定数字 ID 与 'New', 'B
 # 免疫: PTPRC (CD45), CD3D, CD68
 # 正常鳞状上皮: KRT5, KRT14
 
-markers <- c("EPCAM", "KRT18", "COL1A1", "PTPRC", "KRT5", "CDKN2A")
-# 检查这些基因是否存在于数据中
-valid_markers <- markers[markers %in% rownames(st_data)]
+# 原文提到的关键基因 (Fig 8B/C):
+# MYH11, KDM5B, CTNNB1, CD44, CUX1, TEAD1, HOXA10, PBX1, FOSL2
+# 这些基因的空间分布有助于识别恶性区域和边界
 
-if (length(valid_markers) > 0) {
-  message("正在绘制标记基因图以辅助注释...")
-  p_markers <- SpatialFeaturePlot(st_data, features = valid_markers, ncol = 3)
-  ggsave("results/Fig8A_Marker_Expression.png", p_markers, width = 12, height = 8, dpi = 300)
+markers <- c("EPCAM", "KRT18", "COL1A1", "PTPRC", "KRT5", "CDKN2A")
+risk_genes <- c("MYH11", "KDM5B", "CTNNB1", "CD44", "CUX1", "TEAD1", "HOXA10", "PBX1", "FOSL2")
+
+# 检查这些基因是否存在于数据中
+all_genes <- c(markers, risk_genes)
+valid_genes <- all_genes[all_genes %in% rownames(st_data)]
+
+if (length(valid_genes) > 0) {
+  message("正在绘制标记基因和风险基因图以辅助注释...")
+  
+  # 分批绘制，避免一张图太大
+  # 1. 经典 Markers
+  valid_markers <- markers[markers %in% rownames(st_data)]
+  if(length(valid_markers) > 0) {
+    p_markers <- SpatialFeaturePlot(st_data, features = valid_markers, ncol = 3)
+    ggsave("results/Fig8A_Marker_Expression.png", p_markers, width = 12, height = 8, dpi = 300)
+  }
+  
+  # 2. 风险基因 (Risk Genes)
+  valid_risk <- risk_genes[risk_genes %in% rownames(st_data)]
+  if(length(valid_risk) > 0) {
+    p_risk <- SpatialFeaturePlot(st_data, features = valid_risk, ncol = 3)
+    ggsave("results/Fig8A_RiskGenes_Expression.png", p_risk, width = 12, height = 12, dpi = 300)
+  }
 } else {
   message("未找到指定的标记基因，跳过 Marker 绘图。")
 }
